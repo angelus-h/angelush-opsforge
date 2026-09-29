@@ -78,12 +78,14 @@ if _env_file.exists():
     except Exception:
         pass
 
+
 def _env(name, default=None):
     """Get env var or use default."""
     val = os.environ.get(name)
     if not val and not default:
         sys.exit(f"error: {name} not set")
     return val or default
+
 
 def get_gitlab_headers():
     """Build GitLab API auth headers."""
@@ -92,19 +94,26 @@ def get_gitlab_headers():
         sys.exit("error: GITLAB_TOKEN or TF_HTTP_PASSWORD not set")
     return {"PRIVATE-TOKEN": token}
 
+
 def parse_gitlab_url(url):
     """Extract base_url, repo, type, and ID from GitLab URL."""
     # Matches any GitLab host: https://<gitlab-host>/group/subgroup/repo/-/merge_requests/102
-    mr_match = re.search(r'(https?://[^/]+)/(.+?)/-/merge_requests/(\d+)', url)
+    mr_match = re.search(r"(https?://[^/]+)/(.+?)/-/merge_requests/(\d+)", url)
     if mr_match:
         return mr_match.group(1), mr_match.group(2), "mr", int(mr_match.group(3))
 
     # Matches any GitLab host: https://<gitlab-host>/group/subgroup/repo/-/pipelines/17268823
-    pipeline_match = re.search(r'(https?://[^/]+)/(.+?)/-/pipelines/(\d+)', url)
+    pipeline_match = re.search(r"(https?://[^/]+)/(.+?)/-/pipelines/(\d+)", url)
     if pipeline_match:
-        return pipeline_match.group(1), pipeline_match.group(2), "pipeline", int(pipeline_match.group(3))
+        return (
+            pipeline_match.group(1),
+            pipeline_match.group(2),
+            "pipeline",
+            int(pipeline_match.group(3)),
+        )
 
     sys.exit(f"error: invalid GitLab URL format: {url}")
+
 
 def gitlab_api_call(path, headers, base_url=None):
     """Make GitLab API request."""
@@ -116,11 +125,14 @@ def gitlab_api_call(path, headers, base_url=None):
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        error_detail = e.read().decode(errors='replace')[:300]
+        error_detail = e.read().decode(errors="replace")[:300]
         sys.exit(f"error: GitLab API HTTP {e.code}: {error_detail}")
     except urllib.error.URLError as e:
         reason_str = str(e.reason)
-        if "Name or service not known" in reason_str or "getaddrinfo failed" in reason_str:
+        if (
+            "Name or service not known" in reason_str
+            or "getaddrinfo failed" in reason_str
+        ):
             sys.exit(
                 f"error: cannot reach GitLab at '{base_url}' ({reason_str}).\n"
                 f"Hint: If this is an internal Red Hat GitLab server (e.g. gitlab.cee.redhat.com), "
@@ -131,7 +143,11 @@ def gitlab_api_call(path, headers, base_url=None):
 
 def analyze_with_llm(prompt):
     """Analyze using Gemini Flash via llm CLI with automated fallbacks."""
-    candidate_models = ["gemini-3.6-flash", "gemini-flash-lite-latest", "gemini-flash-latest"]
+    candidate_models = [
+        "gemini-3.6-flash",
+        "gemini-flash-lite-latest",
+        "gemini-flash-latest",
+    ]
     last_err = ""
     for m in candidate_models:
         try:
@@ -139,7 +155,7 @@ def analyze_with_llm(prompt):
                 ["llm", "prompt", prompt, "-m", m],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             out = result.stdout.strip()
             if out:
@@ -152,15 +168,18 @@ def analyze_with_llm(prompt):
 
     return f"⚠️ LLM analysis temporarily unavailable ({last_err.strip()}). Review the raw comments and diffs above."
 
+
 def cmd_analyze_mr(repo, mr_number, base_url=None):
     """Analyze MR: review + diffs + Gemini."""
     print(f"🔍 Analyzing MR !{mr_number} in {repo}...\n")
 
     headers = get_gitlab_headers()
-    project_id = urllib.parse.quote(repo, safe='')
+    project_id = urllib.parse.quote(repo, safe="")
 
     # Fetch MR data
-    mr_data = gitlab_api_call(f"/projects/{project_id}/merge_requests/{mr_number}", headers, base_url=base_url)
+    mr_data = gitlab_api_call(
+        f"/projects/{project_id}/merge_requests/{mr_number}", headers, base_url=base_url
+    )
     mr_title = mr_data.get("title")
     mr_status = mr_data.get("state")
 
@@ -171,7 +190,7 @@ def cmd_analyze_mr(repo, mr_number, base_url=None):
     discussions = gitlab_api_call(
         f"/projects/{project_id}/merge_requests/{mr_number}/discussions",
         headers,
-        base_url=base_url
+        base_url=base_url,
     )
 
     # Extract review comments
@@ -187,7 +206,7 @@ def cmd_analyze_mr(repo, mr_number, base_url=None):
     changes = gitlab_api_call(
         f"/projects/{project_id}/merge_requests/{mr_number}/changes",
         headers,
-        base_url=base_url
+        base_url=base_url,
     )
 
     files_changed = []
@@ -195,10 +214,7 @@ def cmd_analyze_mr(repo, mr_number, base_url=None):
         new_path = change.get("new_path")
         old_path = change.get("old_path")
         diff = change.get("diff", "")[:1000]  # First 1000 chars
-        files_changed.append({
-            "path": new_path or old_path,
-            "diff_snippet": diff
-        })
+        files_changed.append({"path": new_path or old_path, "diff_snippet": diff})
 
     # Build context for Gemini
     context = f"GitLab MR Analysis\n\n## MR Details\n- **Title**: {mr_title}\n- **Status**: {mr_status}\n- **Number**: !{mr_number}\n\n"
@@ -214,7 +230,9 @@ def cmd_analyze_mr(repo, mr_number, base_url=None):
         for fc in files_changed[:5]:  # First 5 files
             context += f"### {fc['path']}\n```\n{fc['diff_snippet']}\n```\n"
 
-    prompt = context + """
+    prompt = (
+        context
+        + """
 
 Provide analysis:
 1. **Summary**: What does this MR do?
@@ -224,17 +242,21 @@ Provide analysis:
 5. **Approval Status**: Is this ready to merge or are there blockers?
 
 Be concise and actionable."""
+    )
 
-    print("="*60)
+    print("=" * 60)
     print("ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     analysis = analyze_with_llm(prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
 
     # Save
-    default_inv = os.getenv("INVESTIGATIONS_DIR", os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"))
+    default_inv = os.getenv(
+        "INVESTIGATIONS_DIR",
+        os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"),
+    )
     inv_base = Path(default_inv)
     inv_dir = inv_base / f"gitlab_mr_{mr_number}"
     inv_dir.mkdir(parents=True, exist_ok=True)
@@ -246,7 +268,9 @@ Be concise and actionable."""
         f.write(f"# MR !{mr_number}: {mr_title}\n\n")
         f.write(f"**Repo**: {repo}\n")
         f.write(f"**Status**: {mr_status}\n")
-        f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+        f.write(
+            f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+        )
         if review_comments:
             f.write("## Review Comments\n")
             for comment in review_comments:
@@ -277,22 +301,29 @@ Be concise and actionable."""
                 jf.write(analysis)
             print(f"✅ Also synced directly to Jira investigation: {jira_review_file}")
 
+
 def cmd_analyze_pipeline(repo, pipeline_id, base_url=None):
     """Analyze pipeline: job status + logs if failed."""
     print(f"🔍 Analyzing pipeline {pipeline_id} in {repo}...\n")
 
     headers = get_gitlab_headers()
-    project_id = urllib.parse.quote(repo, safe='')
+    project_id = urllib.parse.quote(repo, safe="")
 
     # Fetch pipeline
-    pipeline_data = gitlab_api_call(f"/projects/{project_id}/pipelines/{pipeline_id}", headers, base_url=base_url)
+    pipeline_data = gitlab_api_call(
+        f"/projects/{project_id}/pipelines/{pipeline_id}", headers, base_url=base_url
+    )
     status = pipeline_data.get("status", "unknown")
 
     print(f"Status: {status}")
     print(f"Web: {pipeline_data.get('web_url')}\n")
 
     # Fetch jobs
-    jobs = gitlab_api_call(f"/projects/{project_id}/pipelines/{pipeline_id}/jobs", headers, base_url=base_url)
+    jobs = gitlab_api_call(
+        f"/projects/{project_id}/pipelines/{pipeline_id}/jobs",
+        headers,
+        base_url=base_url,
+    )
 
     passed = [j for j in jobs if j.get("status") == "success"]
     failed = [j for j in jobs if j.get("status") in ["failed", "error"]]
@@ -312,21 +343,27 @@ def cmd_analyze_pipeline(repo, pipeline_id, base_url=None):
         job_id = job.get("id")
 
         try:
-            log_text = gitlab_api_call(f"/projects/{project_id}/jobs/{job_id}/trace", headers, base_url=base_url)
+            log_text = gitlab_api_call(
+                f"/projects/{project_id}/jobs/{job_id}/trace",
+                headers,
+                base_url=base_url,
+            )
             log_snippet = log_text[-3000:] if len(log_text) > 3000 else log_text
         except Exception as e:
             log_snippet = f"[Log fetch failed: {e}]"
 
-        job_analyses.append({
-            "name": job_name,
-            "status": job.get("status"),
-            "log": log_snippet
-        })
+        job_analyses.append(
+            {"name": job_name, "status": job.get("status"), "log": log_snippet}
+        )
 
     # Gemini analysis
-    analysis_prompt = f"Analyze these CI/CD pipeline failures (pipeline {pipeline_id}):\n\n"
+    analysis_prompt = (
+        f"Analyze these CI/CD pipeline failures (pipeline {pipeline_id}):\n\n"
+    )
     for ja in job_analyses:
-        analysis_prompt += f"**{ja['name']}** ({ja['status']}):\n```\n{ja['log'][-2000:]}\n```\n\n"
+        analysis_prompt += (
+            f"**{ja['name']}** ({ja['status']}):\n```\n{ja['log'][-2000:]}\n```\n\n"
+        )
 
     analysis_prompt += """Provide:
 1. **Root Cause**: What's failing?
@@ -336,16 +373,19 @@ def cmd_analyze_pipeline(repo, pipeline_id, base_url=None):
 
 Be concise and actionable."""
 
-    print("="*60)
+    print("=" * 60)
     print("ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     analysis = analyze_with_llm(analysis_prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
 
     # Save
-    default_inv = os.getenv("INVESTIGATIONS_DIR", os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"))
+    default_inv = os.getenv(
+        "INVESTIGATIONS_DIR",
+        os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"),
+    )
     inv_base = Path(default_inv)
     inv_dir = inv_base / f"gitlab_pipeline_{pipeline_id}"
     inv_dir.mkdir(parents=True, exist_ok=True)
@@ -358,18 +398,24 @@ Be concise and actionable."""
         f.write(f"**Repo**: {repo}\n")
         f.write(f"**Status**: {status}\n")
         f.write(f"**Failed Jobs**: {len(failed)}\n")
-        f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+        f.write(
+            f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+        )
         f.write("## Failed Job Details\n\n")
         for ja in job_analyses:
-            f.write(f"### {ja['name']} ({ja['status']})\n```\n{ja['log'][-2000:]}\n```\n\n")
+            f.write(
+                f"### {ja['name']} ({ja['status']})\n```\n{ja['log'][-2000:]}\n```\n\n"
+            )
         f.write("## Analysis\n\n")
         f.write(analysis)
 
     print(f"\n✅ Analysis saved to: {analysis_file}")
 
+
 def is_url(s):
     """Check if string is a URL."""
     return s.startswith("http://") or s.startswith("https://")
+
 
 def cmd_analyze_local(path_str, prompt):
     """Analyze local file or repo."""
@@ -392,7 +438,7 @@ def cmd_analyze_local(path_str, prompt):
                 ["git", "-C", str(path), "log", "--oneline", "-10"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             recent_commits = result.stdout
         except:
@@ -401,13 +447,24 @@ def cmd_analyze_local(path_str, prompt):
         # File listing
         try:
             result = subprocess.run(
-                ["find", str(path), "-type", "f", "-not", "-path", "*/.git/*", "-not", "-path", "*/.*"],
+                [
+                    "find",
+                    str(path),
+                    "-type",
+                    "f",
+                    "-not",
+                    "-path",
+                    "*/.git/*",
+                    "-not",
+                    "-path",
+                    "*/.*",
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=5
+                timeout=5,
             )
-            files = result.stdout.strip().split('\n')[:20]  # First 20 files
+            files = result.stdout.strip().split("\n")[:20]  # First 20 files
             file_list = "\n".join(files)
         except:
             file_list = "[Could not list files]"
@@ -432,7 +489,7 @@ def cmd_analyze_local(path_str, prompt):
         print("   Reading file...\n")
 
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 file_content = f.read()
             # Limit to first 5000 chars
             if len(file_content) > 5000:
@@ -451,21 +508,27 @@ def cmd_analyze_local(path_str, prompt):
 {prompt}"""
 
     # Gemini analysis
-    analysis_prompt = context + """
+    analysis_prompt = (
+        context
+        + """
 
 Provide a clear, helpful explanation addressing the user's question.
 Use markdown formatting. Be specific and reference code when relevant."""
+    )
 
-    print("="*60)
+    print("=" * 60)
     print("ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     analysis = analyze_with_llm(analysis_prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
 
     # Save
-    default_inv = os.getenv("INVESTIGATIONS_DIR", os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"))
+    default_inv = os.getenv(
+        "INVESTIGATIONS_DIR",
+        os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"),
+    )
     inv_base = Path(default_inv)
     repo_name = path.name or "repo"
     inv_dir = inv_base / f"local_{repo_name}"
@@ -478,18 +541,23 @@ Use markdown formatting. Be specific and reference code when relevant."""
         f.write(f"# Local Analysis: {path}\n\n")
         f.write(f"**Path**: {path}\n")
         f.write(f"**Question**: {prompt}\n")
-        f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+        f.write(
+            f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+        )
         f.write(analysis)
 
     print(f"\n✅ Analysis saved to: {analysis_file}")
 
+
 def main():
     ap = argparse.ArgumentParser(
         description="GitLab & Local Analysis with Gemini",
-        usage="%(prog)s <url-or-path> [question]"
+        usage="%(prog)s <url-or-path> [question]",
     )
     ap.add_argument("target", help="GitLab URL or local path (~/repos/...)")
-    ap.add_argument("question", nargs="?", help="Question about local repo/file (if not a URL)")
+    ap.add_argument(
+        "question", nargs="?", help="Question about local repo/file (if not a URL)"
+    )
 
     args = ap.parse_args()
 
@@ -517,10 +585,11 @@ def main():
     except KeyboardInterrupt:
         print("\n⏹️  Cancelled.")
         sys.exit(0)
-    except SystemExit as e:
+    except SystemExit:
         raise
     except Exception as e:
         sys.exit(f"error: {e}")
+
 
 if __name__ == "__main__":
     main()

@@ -17,7 +17,6 @@ Environment:
 import argparse
 import json
 import os
-import re
 import sys
 import subprocess
 import urllib.error
@@ -31,6 +30,7 @@ _env_file = Path(__file__).resolve().parent.parent / ".env"
 if _env_file.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_env_file)
     except ImportError:
         with open(_env_file, "r", encoding="utf-8") as f:
@@ -50,15 +50,23 @@ def get_pd_config():
         os.environ.get("PAGERDUTY_API_TOKEN", "").strip()
         or os.environ.get("PAGERDUTY_API_KEY", "").strip()
     )
-    base_url = os.environ.get("PAGERDUTY_API_URL", "https://api.pagerduty.com").strip().rstrip("/")
+    base_url = (
+        os.environ.get("PAGERDUTY_API_URL", "https://api.pagerduty.com")
+        .strip()
+        .rstrip("/")
+    )
     return api_key, base_url
 
 
-def pd_request(endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def pd_request(
+    endpoint: str, params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Execute authenticated PagerDuty REST API v2 request."""
     api_key, base_url = get_pd_config()
     if not api_key:
-        raise ValueError("PAGERDUTY_API_TOKEN or PAGERDUTY_API_KEY is not set in environment or .env file.")
+        raise ValueError(
+            "PAGERDUTY_API_TOKEN or PAGERDUTY_API_KEY is not set in environment or .env file."
+        )
 
     url = f"{base_url}{endpoint}"
     if params:
@@ -76,7 +84,7 @@ def pd_request(endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[s
         "Accept": "application/vnd.pagerduty+json;version=2",
         "Authorization": f"Token token={api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "SRE-Hub/1.0"
+        "User-Agent": "SRE-Hub/1.0",
     }
 
     req = urllib.request.Request(url, headers=headers, method="GET")
@@ -88,16 +96,20 @@ def pd_request(endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[s
         body = e.read().decode("utf-8", errors="replace")[:400]
         raise RuntimeError(f"PagerDuty API HTTP {e.code} error: {body}") from e
     except TimeoutError:
-        raise RuntimeError(f"Connection to PagerDuty timed out after 45s ({url}). Check your network connection / Red Hat VPN.")
+        raise RuntimeError(
+            f"Connection to PagerDuty timed out after 45s ({url}). Check your network connection / Red Hat VPN."
+        )
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Failed to connect to PagerDuty ({base_url}): {e.reason}") from e
+        raise RuntimeError(
+            f"Failed to connect to PagerDuty ({base_url}): {e.reason}"
+        ) from e
 
 
 def list_incidents(
     statuses: Optional[List[str]] = None,
     urgency: Optional[str] = None,
     query: Optional[str] = None,
-    limit: int = 25
+    limit: int = 25,
 ) -> List[Dict[str, Any]]:
     """List incidents with given status/filters."""
     if not statuses:
@@ -106,7 +118,7 @@ def list_incidents(
     params: Dict[str, Any] = {
         "statuses": statuses,
         "limit": min(limit, 100),
-        "sort_by": "created_at:desc"
+        "sort_by": "created_at:desc",
     }
     if urgency and urgency != "all":
         params["urgencies"] = [urgency]
@@ -121,13 +133,17 @@ def get_incident(incident_id_or_number: str) -> Dict[str, Any]:
     """Fetch single incident by ID (e.g. 'PXXXXXX') or incident number (e.g. 1234)."""
     # If numeric, search by query or fetch list matching number
     if incident_id_or_number.isdigit():
-        res = pd_request("/incidents", params={"incident_key": incident_id_or_number, "limit": 5})
+        res = pd_request(
+            "/incidents", params={"incident_key": incident_id_or_number, "limit": 5}
+        )
         incidents = res.get("incidents", [])
         for inc in incidents:
             if str(inc.get("incident_number")) == incident_id_or_number:
                 return inc
         # Fallback to query
-        res = pd_request("/incidents", params={"query": incident_id_or_number, "limit": 10})
+        res = pd_request(
+            "/incidents", params={"query": incident_id_or_number, "limit": 10}
+        )
         for inc in res.get("incidents", []):
             if str(inc.get("incident_number")) == incident_id_or_number:
                 return inc
@@ -152,7 +168,7 @@ def get_incident_log_entries(incident_id: str, limit: int = 15) -> List[Dict[str
 def format_incident_markdown(
     incident: Dict[str, Any],
     alerts: Optional[List[Dict[str, Any]]] = None,
-    logs: Optional[List[Dict[str, Any]]] = None
+    logs: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Format incident, alerts, and timeline logs into clean Markdown for investigations."""
     inc_num = incident.get("incident_number", "N/A")
@@ -194,7 +210,9 @@ def format_incident_markdown(
             body_details = (alert.get("body") or {}).get("details", {})
             lines.append(f"- **Alert {idx}:** [{severity.upper()}] {alert_summary}")
             if body_details:
-                formatted_details = json.dumps(body_details, indent=2, ensure_ascii=False)
+                formatted_details = json.dumps(
+                    body_details, indent=2, ensure_ascii=False
+                )
                 # Keep payload reasonably sized for zero token waste
                 if len(formatted_details) > 3000:
                     formatted_details = formatted_details[:3000] + "\n... [TRUNCATED]"
@@ -240,7 +258,7 @@ def analyze_with_llm(context_text: str, custom_prompt: str = "") -> str:
                 ["llm", "prompt", full_prompt, "-m", m],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             return res.stdout.strip()
         except Exception:
@@ -254,7 +272,9 @@ def main():
 
     # list
     p_list = subparsers.add_parser("list", help="List incidents")
-    p_list.add_argument("--status", default="triggered,acknowledged", help="Comma-separated statuses")
+    p_list.add_argument(
+        "--status", default="triggered,acknowledged", help="Comma-separated statuses"
+    )
     p_list.add_argument("--urgency", default="all", choices=["all", "high", "low"])
     p_list.add_argument("--query", default="", help="Search query")
     p_list.add_argument("--limit", type=int, default=20, help="Result limit")
@@ -281,14 +301,27 @@ def main():
     try:
         if args.command == "list":
             statuses = [s.strip() for s in args.status.split(",") if s.strip()]
-            incidents = list_incidents(statuses=statuses, urgency=args.urgency, query=args.query, limit=args.limit)
+            incidents = list_incidents(
+                statuses=statuses,
+                urgency=args.urgency,
+                query=args.query,
+                limit=args.limit,
+            )
             if not incidents:
                 print("No incidents found matching criteria.")
                 return
             for inc in incidents:
-                status_emoji = "🔴" if inc.get("status") == "triggered" else "🟡" if inc.get("status") == "acknowledged" else "🟢"
+                status_emoji = (
+                    "🔴"
+                    if inc.get("status") == "triggered"
+                    else "🟡"
+                    if inc.get("status") == "acknowledged"
+                    else "🟢"
+                )
                 svc = (inc.get("service") or {}).get("summary", "N/A")
-                print(f"{status_emoji} #{inc.get('incident_number')} [{inc.get('status').upper()}] {inc.get('title')} ({svc}) - ID: {inc.get('id')}")
+                print(
+                    f"{status_emoji} #{inc.get('incident_number')} [{inc.get('status').upper()}] {inc.get('title')} ({svc}) - ID: {inc.get('id')}"
+                )
 
         elif args.command == "show":
             inc = get_incident(args.incident_id)

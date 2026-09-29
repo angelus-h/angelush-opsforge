@@ -1,7 +1,7 @@
 import subprocess
 import shutil
-import json
 from typing import Optional, List
+
 
 class LLMBridge:
     """Invokes local 'llm' CLI or Ollama models for stateless, zero-waste execution."""
@@ -25,10 +25,16 @@ class LLMBridge:
         # 1. Try discovering models from `llm models` CLI
         if cls.is_available():
             try:
-                res = subprocess.run(["llm", "models", "list"], capture_output=True, text=True, timeout=5)
+                res = subprocess.run(
+                    ["llm", "models", "list"], capture_output=True, text=True, timeout=5
+                )
                 for line in res.stdout.splitlines():
                     clean = line.strip()
-                    if clean and not clean.startswith("Default:") and not clean.startswith("Extra:"):
+                    if (
+                        clean
+                        and not clean.startswith("Default:")
+                        and not clean.startswith("Extra:")
+                    ):
                         model_name = clean.split()[0].strip(":")
                         if model_name and model_name not in models:
                             models.append(model_name)
@@ -38,7 +44,9 @@ class LLMBridge:
         # 2. Try discovering models directly from Ollama if running
         if cls.is_ollama_available():
             try:
-                res = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+                res = subprocess.run(
+                    ["ollama", "list"], capture_output=True, text=True, timeout=5
+                )
                 lines = res.stdout.splitlines()
                 if len(lines) > 1:
                     for line in lines[1:]:
@@ -55,7 +63,7 @@ class LLMBridge:
             "qwen2.5-coder:14b",
             "qwen2.5-coder:32b",
             "qwen2.5:7b",
-            "deepseek-r1:32b"
+            "deepseek-r1:32b",
         ]
         for cand in candidate_defaults:
             if cand not in models:
@@ -64,16 +72,30 @@ class LLMBridge:
         return models
 
     @classmethod
-    def execute(cls, prompt: str, model: str = MODEL_FLASH, system_prompt: Optional[str] = None) -> str:
+    def execute(
+        cls, prompt: str, model: str = MODEL_FLASH, system_prompt: Optional[str] = None
+    ) -> str:
         """Executes prompt via `llm` CLI or directly through `ollama run`."""
         # Check if direct Ollama execution is selected
-        if model.startswith("ollama/") or ":" in model and not model.startswith("gemini"):
+        if (
+            model.startswith("ollama/")
+            or ":" in model
+            and not model.startswith("gemini")
+        ):
             clean_model = model.replace("ollama/", "")
             if cls.is_ollama_available():
                 cmd = ["ollama", "run", clean_model]
-                full_prompt = f"System: {system_prompt}\n\n{prompt}" if system_prompt else prompt
+                full_prompt = (
+                    f"System: {system_prompt}\n\n{prompt}" if system_prompt else prompt
+                )
                 try:
-                    res = subprocess.run(cmd, input=full_prompt, capture_output=True, text=True, check=True)
+                    res = subprocess.run(
+                        cmd,
+                        input=full_prompt,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
                     return res.stdout.strip()
                 except subprocess.CalledProcessError as e:
                     return f"Ollama execution failed (exit code {e.returncode}):\n{e.stderr or e.stdout}"
@@ -96,11 +118,7 @@ class LLMBridge:
 
             try:
                 res = subprocess.run(
-                    cmd,
-                    input=prompt,
-                    capture_output=True,
-                    text=True,
-                    check=True
+                    cmd, input=prompt, capture_output=True, text=True, check=True
                 )
                 return res.stdout.strip()
             except subprocess.CalledProcessError as e:

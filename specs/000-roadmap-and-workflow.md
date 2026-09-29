@@ -1,7 +1,7 @@
 # SRE-Hub Development Roadmap & Spec-Driven Development Framework
 
-**Version:** 1.0.0  
-**Project:** SRE Operations Hub (`/home/mgreczi/ai/konflux-lumino/projects/sre-hub`)  
+**Version:** 1.0.0
+**Project:** SRE Operations Hub (`/home/mgreczi/ai/konflux-lumino/projects/sre-hub`)
 **Status:** Approved / Active Execution
 
 ---

@@ -24,14 +24,20 @@ def parse_contract_meta(content: str, folder_name: str):
     inv_type = "Implementation"
 
     # Extract title from first heading
-    title_match = re.search(r"^#\s+(?:JIRA\s+[A-Za-z]+:\s*)?(?:[A-Za-z0-9]+-\d+\s*[-:]\s*)?([^\n]+)", content, re.MULTILINE)
+    title_match = re.search(
+        r"^#\s+(?:JIRA\s+[A-Za-z]+:\s*)?(?:[A-Za-z0-9]+-\d+\s*[-:]\s*)?([^\n]+)",
+        content,
+        re.MULTILINE,
+    )
     if title_match:
         extracted = title_match.group(1).strip()
         if extracted:
             title = extracted
 
     # Extract status
-    status_match = re.search(r"\*\*Status:\*\*\s*([A-Za-z_\-]+)", content, re.IGNORECASE)
+    status_match = re.search(
+        r"\*\*Status:\*\*\s*([A-Za-z_\-]+)", content, re.IGNORECASE
+    )
     if status_match:
         status = status_match.group(1).strip().upper()
 
@@ -44,7 +50,7 @@ def parse_contract_meta(content: str, folder_name: str):
 
 
 def migrate(storage_dir: Path, dry_run: bool = False):
-    print(f"🚀 Initializing database schema...")
+    print("🚀 Initializing database schema...")
     init_db()
 
     if not storage_dir.exists():
@@ -79,23 +85,33 @@ def migrate(storage_dir: Path, dry_run: bool = False):
                         contract_file = fallbacks[0]
 
                 if contract_file.exists():
-                    contract_content = contract_file.read_text(encoding="utf-8", errors="replace")
+                    contract_content = contract_file.read_text(
+                        encoding="utf-8", errors="replace"
+                    )
                     jira_key = item.name.upper()
-                    updated_at = datetime.fromtimestamp(contract_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    updated_at = datetime.fromtimestamp(
+                        contract_file.stat().st_mtime
+                    ).strftime("%Y-%m-%d %H:%M:%S")
                 elif is_jira_like:
                     # Directory has no analysis.md, check if any md exists
                     md_files = list(item.glob("*.md"))
                     if md_files:
                         contract_content = f"# {item.name}\n\n**Status:** ACTIVE\n**Type:** Investigation\n\nSynthesized from local files."
                         jira_key = item.name.upper()
-                        updated_at = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                        updated_at = datetime.fromtimestamp(
+                            item.stat().st_mtime
+                        ).strftime("%Y-%m-%d %H:%M:%S")
 
             elif item.is_file() and item.suffix == ".md":
                 is_jira_like = bool(re.match(r"^[A-Za-z0-9]+-\d+", item.name))
                 if is_jira_like:
                     jira_key = item.stem.upper()
-                    contract_content = item.read_text(encoding="utf-8", errors="replace")
-                    updated_at = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    contract_content = item.read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+                    updated_at = datetime.fromtimestamp(item.stat().st_mtime).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
 
             if not jira_key or not contract_content:
                 continue
@@ -114,7 +130,7 @@ def migrate(storage_dir: Path, dry_run: bool = False):
                         contract_md = excluded.contract_md,
                         updated_at = excluded.updated_at
                     """,
-                    (jira_key, title, status, inv_type, contract_content, updated_at)
+                    (jira_key, title, status, inv_type, contract_content, updated_at),
                 )
 
             migrated_invs += 1
@@ -125,7 +141,9 @@ def migrate(storage_dir: Path, dry_run: bool = False):
                     if art_file.name in ("analysis.md", "README.md"):
                         continue
                     art_content = art_file.read_text(encoding="utf-8", errors="replace")
-                    art_updated = datetime.fromtimestamp(art_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    art_updated = datetime.fromtimestamp(
+                        art_file.stat().st_mtime
+                    ).strftime("%Y-%m-%d %H:%M:%S")
 
                     if not dry_run:
                         conn.execute(
@@ -135,15 +153,20 @@ def migrate(storage_dir: Path, dry_run: bool = False):
                             ON CONFLICT(jira_key, artifact_name) DO UPDATE SET
                                 content = excluded.content
                             """,
-                            (jira_key, art_file.name, art_content, art_updated)
+                            (jira_key, art_file.name, art_content, art_updated),
                         )
                     migrated_artifacts += 1
 
-    print(f"\n✅ Migration complete!")
+    print("\n✅ Migration complete!")
     print(f"   • Migrated investigations: {migrated_invs}")
     print(f"   • Migrated artifacts:     {migrated_artifacts}")
 
 
 if __name__ == "__main__":
-    storage = Path(os.getenv("INVESTIGATIONS_DIR", os.path.expanduser("~/ai/konflux-lumino/investigations/detailed")))
+    storage = Path(
+        os.getenv(
+            "INVESTIGATIONS_DIR",
+            os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"),
+        )
+    )
     migrate(storage)

@@ -1,7 +1,7 @@
 # Concept and System Design: NoSQL Data Layer, Relation Graph, and New SRE Tools
 
-**Status:** Draft / Under Maturation  
-**Date:** 2026-09-24  
+**Status:** Draft / Under Maturation
+**Date:** 2026-09-24
 **Project:** SRE-Hub (`/home/mgreczi/ai/konflux-lumino/projects/sre-hub`)
 
 ---

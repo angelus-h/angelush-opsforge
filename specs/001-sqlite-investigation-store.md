@@ -2,9 +2,9 @@
 
 **Goal:** Replace the filesystem-based investigation engine of SRE-Hub with a high-performance, embedded SQLite database, featuring persistent chat history, Jira relations, FTS5 full-text search, and hybrid file synchronization.
 
-**Document Status:** Ready for Approval  
-**Date:** 2026-09-24  
-**Version:** 1.0.0  
+**Document Status:** Ready for Approval
+**Date:** 2026-09-24
+**Version:** 1.0.0
 **Affected Files:**
 - `core/db.py` (New database module)
 - `core/investigation_tracker.py` (Refactored SQLite engine maintaining the exact same public API)

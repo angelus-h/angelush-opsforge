@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Optional
 import re
 
-from config import INVESTIGATIONS_DIR, STATE_DIR, JIRA_URL
+from config import INVESTIGATIONS_DIR, JIRA_URL
 from core.llm_bridge import LLMBridge
 from core.db import get_db, init_db
 
@@ -106,7 +106,7 @@ class InvestigationTracker:
         """
         safe_id = re.sub(r"[^A-Za-z0-9_\-\.]", "_", jira_key.strip().upper())
         ticket_dir = self.get_ticket_dir(jira_key)
-        
+
         if ticket_dir.is_dir():
             analysis_file = ticket_dir / "analysis.md"
             if analysis_file.exists():
@@ -122,7 +122,7 @@ class InvestigationTracker:
             analysis_candidates = sorted(
                 list(ticket_dir.glob("*analysis*.md")),
                 key=lambda p: p.stat().st_mtime,
-                reverse=True
+                reverse=True,
             )
             if analysis_candidates:
                 return analysis_candidates[0]
@@ -147,12 +147,12 @@ class InvestigationTracker:
             with get_db() as conn:
                 if search_query and search_query.strip():
                     q = search_query.strip()
-                    clean_q = re.sub(r'[^\w\s\-]', ' ', q).strip()
+                    clean_q = re.sub(r"[^\w\s\-]", " ", q).strip()
                     if clean_q:
                         fts_query = f'"{clean_q}"*'
                         rows = conn.execute(
                             "SELECT jira_key FROM investigations_fts WHERE investigations_fts MATCH ? ORDER BY rank",
-                            (fts_query,)
+                            (fts_query,),
                         ).fetchall()
                         return [r[0] for r in rows]
 
@@ -181,12 +181,20 @@ class InvestigationTracker:
                     is_jira_like = bool(re.match(r"^[A-Za-z0-9]+-\d+", item.name))
                     has_other_md = any(item.glob("*.md"))
 
-                    if is_jira_like or has_contract or (has_other_md and not item.name.startswith(".")):
+                    if (
+                        is_jira_like
+                        or has_contract
+                        or (has_other_md and not item.name.startswith("."))
+                    ):
                         name = item.name.upper()
                         if name not in seen:
                             seen.add(name)
                             target_file = item / "analysis.md"
-                            mtime = target_file.stat().st_mtime if target_file.exists() else item.stat().st_mtime
+                            mtime = (
+                                target_file.stat().st_mtime
+                                if target_file.exists()
+                                else item.stat().st_mtime
+                            )
                             keys.append((name, mtime))
                 elif item.is_file() and item.suffix == ".md":
                     name = item.stem.upper()
@@ -217,7 +225,7 @@ class InvestigationTracker:
                     ON CONFLICT(jira_key, artifact_name) DO UPDATE SET
                         content = excluded.content
                     """,
-                    (safe_key, filename, content)
+                    (safe_key, filename, content),
                 )
         except Exception as e:
             print(f"Warning: Failed to save artifact in DB: {e}")
@@ -230,7 +238,11 @@ class InvestigationTracker:
         if not ticket_dir.exists() or not ticket_dir.is_dir():
             return []
         main_file = self.get_file_path(jira_key)
-        return [p for p in ticket_dir.iterdir() if p.is_file() and p.resolve() != main_file.resolve()]
+        return [
+            p
+            for p in ticket_dir.iterdir()
+            if p.is_file() and p.resolve() != main_file.resolve()
+        ]
 
     def create_investigation(
         self,
@@ -241,7 +253,7 @@ class InvestigationTracker:
         initial_fact: str = "",
         initial_hypothesis: str = "",
         jira_url: Optional[str] = None,
-        scan_directory: bool = True
+        scan_directory: bool = True,
     ) -> str:
         """Create a new deterministic investigation or implementation file scoped to a Jira ticket."""
         jira_key = incident_id.strip().upper()
@@ -259,7 +271,7 @@ class InvestigationTracker:
                 target_system=target_system if target_system != "Unspecified" else None,
                 initial_fact=initial_fact,
                 initial_hypothesis=initial_hypothesis,
-                jira_url=base_jira_url
+                jira_url=base_jira_url,
             )
             if synthesized:
                 return synthesized
@@ -267,10 +279,18 @@ class InvestigationTracker:
         eff_title = title.strip() if title.strip() else f"{jira_key} SRE Task"
 
         if mode == "implementation":
-            specs = f"- [x] {initial_fact}" if initial_fact else "- [ ] Implement requirements as requested"
+            specs = (
+                f"- [x] {initial_fact}"
+                if initial_fact
+                else "- [ ] Implement requirements as requested"
+            )
             baseline = "- (No verified working baseline yet)"
             failed_attempts = "- (None so far)"
-            next_step = f"- [ ] Next: {initial_hypothesis}" if initial_hypothesis else "- [ ] Formulate first implementation iteration"
+            next_step = (
+                f"- [ ] Next: {initial_hypothesis}"
+                if initial_hypothesis
+                else "- [ ] Formulate first implementation iteration"
+            )
 
             content = IMPLEMENTATION_TEMPLATE.format(
                 jira_key=jira_key,
@@ -283,13 +303,23 @@ class InvestigationTracker:
                 specs=specs,
                 baseline=baseline,
                 failed_attempts=failed_attempts,
-                next_step=next_step
+                next_step=next_step,
             )
         else:
-            facts = f"- [x] {initial_fact}" if initial_fact else "- [ ] (No verified facts yet)"
+            facts = (
+                f"- [x] {initial_fact}"
+                if initial_fact
+                else "- [ ] (No verified facts yet)"
+            )
             ruled_out = "- (None so far)"
-            hypotheses = f"- [ ] Hypothesis: {initial_hypothesis}\n  - Experiment: Test initial assumption" if initial_hypothesis else "- [ ] (Formulate initial hypothesis)"
-            timeline = f"- [{now_str}] Investigation initialized for {jira_key}: {eff_title}"
+            hypotheses = (
+                f"- [ ] Hypothesis: {initial_hypothesis}\n  - Experiment: Test initial assumption"
+                if initial_hypothesis
+                else "- [ ] (Formulate initial hypothesis)"
+            )
+            timeline = (
+                f"- [{now_str}] Investigation initialized for {jira_key}: {eff_title}"
+            )
 
             content = INVESTIGATION_TEMPLATE.format(
                 jira_key=jira_key,
@@ -317,7 +347,7 @@ class InvestigationTracker:
         initial_fact: str = "",
         initial_hypothesis: str = "",
         jira_url: Optional[str] = None,
-        model: str = "gemini-flash-latest"
+        model: str = "gemini-flash-latest",
     ) -> Optional[str]:
         """
         Scans an existing ticket directory for notes, plans, playbooks, or checklists,
@@ -331,20 +361,35 @@ class InvestigationTracker:
         # Exclude directories like vaults, .git, caches
         excluded_dirs = {"vaults", ".git", "__pycache__", "node_modules", ".venv"}
         inferred_title = title.strip() if title and title.strip() else ""
-        inferred_system = target_system.strip() if target_system and target_system.strip() and target_system != "Unspecified" else ""
+        inferred_system = (
+            target_system.strip()
+            if target_system
+            and target_system.strip()
+            and target_system != "Unspecified"
+            else ""
+        )
 
         # Priority search for markdown files first, then playbooks / configs
-        md_files = sorted(list(ticket_dir.glob("*.md")), key=lambda p: (0 if "plan" in p.name.lower() or "readme" in p.name.lower() else 1, p.name))
+        md_files = sorted(
+            list(ticket_dir.glob("*.md")),
+            key=lambda p: (
+                0 if "plan" in p.name.lower() or "readme" in p.name.lower() else 1,
+                p.name,
+            ),
+        )
         other_files = [
-            p for p in ticket_dir.rglob("*") 
-            if p.is_file() 
+            p
+            for p in ticket_dir.rglob("*")
+            if p.is_file()
             and not any(ex in p.parts for ex in excluded_dirs)
             and p.suffix in [".yml", ".yaml", ".py", ".sh", ".txt", ".json", ".csv"]
         ]
 
         all_candidates = md_files + other_files
         # Exclude target analysis file itself if already reading it
-        all_candidates = [f for f in all_candidates if f.name not in ("analysis.md", f"{jira_key}.md")]
+        all_candidates = [
+            f for f in all_candidates if f.name not in ("analysis.md", f"{jira_key}.md")
+        ]
 
         if not all_candidates:
             return None
@@ -358,10 +403,12 @@ class InvestigationTracker:
                 txt = fpath.read_text(encoding="utf-8", errors="ignore")
                 if not inferred_title and fpath.suffix == ".md":
                     # Try to extract title from first # Header
-                    m = re.search(r"^#\s+(?:[A-Za-z0-9_\-]+[:\-]\s*)?(.+)", txt, re.MULTILINE)
+                    m = re.search(
+                        r"^#\s+(?:[A-Za-z0-9_\-]+[:\-]\s*)?(.+)", txt, re.MULTILINE
+                    )
                     if m:
                         inferred_title = m.group(1).strip()
-                
+
                 snippet = txt[:6000]
                 total_bytes += len(snippet)
                 file_snippets.append(f"### File: {rel_path}\n```\n{snippet}\n```")
@@ -379,12 +426,32 @@ class InvestigationTracker:
         materials_text = "\n\n".join(file_snippets)
 
         if not inferred_system:
-            repo_match = re.search(r"(rhsm-[a-z0-9\-_]+|konflux-[a-z0-9\-_]+|pulp-[a-z0-9\-_]+|alertmanager|datadog[a-z0-9\-_]*)", materials_text, re.IGNORECASE)
+            repo_match = re.search(
+                r"(rhsm-[a-z0-9\-_]+|konflux-[a-z0-9\-_]+|pulp-[a-z0-9\-_]+|alertmanager|datadog[a-z0-9\-_]*)",
+                materials_text,
+                re.IGNORECASE,
+            )
             if repo_match:
                 inferred_system = repo_match.group(1)
         if not mode:
-            impl_keywords = ["implementation", "playbook", "deploy", "ansible", "feature", "upgrade", "migration"]
-            rca_keywords = ["incident", "outage", "rca", "root cause", "failure", "alert", "pagerduty"]
+            impl_keywords = [
+                "implementation",
+                "playbook",
+                "deploy",
+                "ansible",
+                "feature",
+                "upgrade",
+                "migration",
+            ]
+            rca_keywords = [
+                "incident",
+                "outage",
+                "rca",
+                "root cause",
+                "failure",
+                "alert",
+                "pagerduty",
+            ]
             impl_score = sum(materials_text.lower().count(k) for k in impl_keywords)
             rca_score = sum(materials_text.lower().count(k) for k in rca_keywords)
             mode = "implementation" if impl_score >= rca_score else "investigation"
@@ -397,7 +464,9 @@ class InvestigationTracker:
         if initial_fact:
             user_hints += f"\n- Additional User Observation/Fact: {initial_fact}"
         if initial_hypothesis:
-            user_hints += f"\n- Additional User Next Step/Hypothesis: {initial_hypothesis}"
+            user_hints += (
+                f"\n- Additional User Next Step/Hypothesis: {initial_hypothesis}"
+            )
 
         system_prompt = (
             "You are a Senior Principal SRE and Software Engineer. "
@@ -467,8 +536,14 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
 """
 
         try:
-            synthesized_md = LLMBridge.execute(prompt, model=model, system_prompt=system_prompt).strip()
-            required_h = "## 1. SPEC & HARD CONSTRAINTS" if mode == "implementation" else "## 1. CONFIRMED FACTS"
+            synthesized_md = LLMBridge.execute(
+                prompt, model=model, system_prompt=system_prompt
+            ).strip()
+            required_h = (
+                "## 1. SPEC & HARD CONSTRAINTS"
+                if mode == "implementation"
+                else "## 1. CONFIRMED FACTS"
+            )
             if required_h in synthesized_md:
                 target_file.write_text(synthesized_md, encoding="utf-8")
                 return synthesized_md
@@ -486,10 +561,13 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
                 target_system=inferred_system or "Unspecified",
                 created_at=now_str,
                 last_updated=now_str,
-                specs=f"- [x] Synthesized from existing directory files: {file_summary}\n" + (f"- {initial_fact}" if initial_fact else ""),
+                specs=f"- [x] Synthesized from existing directory files: {file_summary}\n"
+                + (f"- {initial_fact}" if initial_fact else ""),
                 baseline="- Existing code and notes available in ticket directory.",
                 failed_attempts="- (None recorded yet)",
-                next_step=f"- [ ] {initial_hypothesis}" if initial_hypothesis else "- [ ] Review discovered directory files."
+                next_step=f"- [ ] {initial_hypothesis}"
+                if initial_hypothesis
+                else "- [ ] Review discovered directory files.",
             )
         else:
             fallback_md = INVESTIGATION_TEMPLATE.format(
@@ -500,10 +578,13 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
                 target_system=inferred_system or "Unspecified",
                 created_at=now_str,
                 last_updated=now_str,
-                facts=f"- [x] Discovered existing directory files: {file_summary}\n" + (f"- {initial_fact}" if initial_fact else ""),
+                facts=f"- [x] Discovered existing directory files: {file_summary}\n"
+                + (f"- {initial_fact}" if initial_fact else ""),
                 ruled_out="- (None)",
-                hypotheses=f"- [ ] Hypothesis: {initial_hypothesis}" if initial_hypothesis else "- [ ] Review existing directory artifacts.",
-                timeline=f"- [{now_str}] Initialized from existing ticket materials."
+                hypotheses=f"- [ ] Hypothesis: {initial_hypothesis}"
+                if initial_hypothesis
+                else "- [ ] Review existing directory artifacts.",
+                timeline=f"- [{now_str}] Initialized from existing ticket materials.",
             )
         target_file.write_text(fallback_md, encoding="utf-8")
         return fallback_md
@@ -513,7 +594,10 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
         jira_key = incident_id.strip().upper()
         try:
             with get_db() as conn:
-                row = conn.execute("SELECT contract_md FROM investigations WHERE jira_key = ?", (jira_key,)).fetchone()
+                row = conn.execute(
+                    "SELECT contract_md FROM investigations WHERE jira_key = ?",
+                    (jira_key,),
+                ).fetchone()
                 if row and row[0]:
                     return row[0]
         except Exception:
@@ -525,8 +609,10 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             if synthesized:
                 self.save_raw_investigation(jira_key, synthesized)
                 return synthesized
-            raise FileNotFoundError(f"Investigation '{jira_key}' not found at {target_file}")
-        
+            raise FileNotFoundError(
+                f"Investigation '{jira_key}' not found at {target_file}"
+            )
+
         content = target_file.read_text(encoding="utf-8")
         self.save_raw_investigation(jira_key, content)
         return content
@@ -539,16 +625,24 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
         target_file.write_text(content, encoding="utf-8")
 
         title = f"{jira_key} Investigation"
-        title_match = re.search(r"^#\s+(?:JIRA\s+[A-Za-z]+:\s*)?(?:[A-Za-z0-9]+-\d+\s*[-:]\s*)?([^\n]+)", content, re.MULTILINE)
+        title_match = re.search(
+            r"^#\s+(?:JIRA\s+[A-Za-z]+:\s*)?(?:[A-Za-z0-9]+-\d+\s*[-:]\s*)?([^\n]+)",
+            content,
+            re.MULTILINE,
+        )
         if title_match and title_match.group(1).strip():
             title = title_match.group(1).strip()
 
         status = "ACTIVE"
-        status_match = re.search(r"\*\*Status:\*\*\s*([A-Za-z_\-]+)", content, re.IGNORECASE)
+        status_match = re.search(
+            r"\*\*Status:\*\*\s*([A-Za-z_\-]+)", content, re.IGNORECASE
+        )
         if status_match:
             status = status_match.group(1).strip().upper()
 
-        inv_type = "Implementation" if self.is_implementation_doc(content) else "Investigation"
+        inv_type = (
+            "Implementation" if self.is_implementation_doc(content) else "Investigation"
+        )
 
         try:
             with get_db() as conn:
@@ -563,7 +657,7 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
                         contract_md = excluded.contract_md,
                         updated_at = datetime('now')
                     """,
-                    (jira_key, title, status, inv_type, content)
+                    (jira_key, title, status, inv_type, content),
                 )
         except Exception as e:
             print(f"Warning: Failed to persist {jira_key} to SQLite: {e}")
@@ -575,25 +669,34 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             with get_db() as conn:
                 rows = conn.execute(
                     "SELECT role, message, model_name, created_at FROM chat_history WHERE jira_key = ? ORDER BY id ASC",
-                    (safe_key,)
+                    (safe_key,),
                 ).fetchall()
                 return [dict(r) for r in rows]
         except Exception:
             return []
 
-    def save_chat_message(self, jira_key: str, role: str, message: str, model_name: str = "auto") -> None:
+    def save_chat_message(
+        self, jira_key: str, role: str, message: str, model_name: str = "auto"
+    ) -> None:
         """Saves a single chat message into persistent SQLite history."""
         safe_key = jira_key.strip().upper()
         try:
             with get_db() as conn:
                 conn.execute(
                     "INSERT INTO chat_history (jira_key, model_name, role, message) VALUES (?, ?, ?, ?)",
-                    (safe_key, model_name, role, message)
+                    (safe_key, model_name, role, message),
                 )
         except Exception as e:
             print(f"Warning: Failed to save chat message in DB: {e}")
 
-    def add_ticket_relation(self, source_key: str, target_key: str, relation_type: str, summary: str = "", status: str = "") -> None:
+    def add_ticket_relation(
+        self,
+        source_key: str,
+        target_key: str,
+        relation_type: str,
+        summary: str = "",
+        status: str = "",
+    ) -> None:
         """Adds or updates a ticket relation link in SQLite."""
         s_key = source_key.strip().upper()
         t_key = target_key.strip().upper()
@@ -607,7 +710,7 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
                         summary = excluded.summary,
                         status = excluded.status
                     """,
-                    (s_key, t_key, relation_type, summary, status)
+                    (s_key, t_key, relation_type, summary, status),
                 )
         except Exception as e:
             print(f"Warning: Failed to add ticket relation in DB: {e}")
@@ -619,7 +722,7 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             with get_db() as conn:
                 rows = conn.execute(
                     "SELECT target_key, relation_type, summary, status FROM ticket_relations WHERE source_key = ? ORDER BY created_at ASC",
-                    (safe_key,)
+                    (safe_key,),
                 ).fetchall()
                 return [dict(r) for r in rows]
         except Exception:
@@ -627,21 +730,23 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
 
     def is_implementation_doc(self, content: str) -> bool:
         """Detect whether document follows implementation schema or RCA schema."""
-        return "SPEC & HARD CONSTRAINTS" in content or "Type:** Implementation" in content
+        return (
+            "SPEC & HARD CONSTRAINTS" in content or "Type:** Implementation" in content
+        )
 
     def update_with_ai(
         self,
         incident_id: str,
         observation: str,
         model: str = "gemini-flash-latest",
-        context_attachment: str = ""
+        context_attachment: str = "",
     ) -> str:
         """Legacy updater that returns only updated markdown content."""
         result = self.interact_with_ai(
             incident_id=incident_id,
             user_message=observation,
             model=model,
-            context_attachment=context_attachment
+            context_attachment=context_attachment,
         )
         return result["updated_doc"]
 
@@ -652,7 +757,7 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
         model: str = "gemini-flash-latest",
         context_attachment: str = "",
         mode: str = None,
-        chat_history: List[dict] = None
+        chat_history: List[dict] = None,
     ) -> dict:
         """
         Dual-output interaction:
@@ -724,7 +829,10 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
         if not effective_history:
             db_history = self.get_chat_history(incident_id)
             if db_history:
-                effective_history = [{"role": h["role"], "content": h["message"]} for h in db_history[-6:]]
+                effective_history = [
+                    {"role": h["role"], "content": h["message"]}
+                    for h in db_history[-6:]
+                ]
 
         if effective_history:
             history_str = "# RECENT CONVERSATION HISTORY (MICRO-WINDOW):\n"
@@ -741,12 +849,20 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             for art in sorted(ticket_dir.glob("*.md")):
                 if art.name not in ("analysis.md", f"{incident_id}.md"):
                     try:
-                        content_snip = art.read_text(encoding="utf-8", errors="ignore")[:4000]
-                        art_snippets.append(f"### File: {art.name}\n```markdown\n{content_snip}\n```")
+                        content_snip = art.read_text(encoding="utf-8", errors="ignore")[
+                            :4000
+                        ]
+                        art_snippets.append(
+                            f"### File: {art.name}\n```markdown\n{content_snip}\n```"
+                        )
                     except Exception:
                         pass
             if art_snippets:
-                artifacts_context = "\n# ATTACHED DIRECTORY FILES & ARTIFACTS IN THIS TICKET:\n" + "\n\n".join(art_snippets) + "\n"
+                artifacts_context = (
+                    "\n# ATTACHED DIRECTORY FILES & ARTIFACTS IN THIS TICKET:\n"
+                    + "\n\n".join(art_snippets)
+                    + "\n"
+                )
 
         user_prompt = f"""# CURRENT STATE CONTRACT (LONG-TERM MEMORY):
 {current_content}
@@ -757,7 +873,9 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
         if context_attachment:
             user_prompt += f"\n# ATTACHED ERROR LOG OR CODE CONTEXT:\n{context_attachment[:3500]}\n"
 
-        raw_output = LLMBridge.execute(user_prompt, model=model, system_prompt=system_prompt)
+        raw_output = LLMBridge.execute(
+            user_prompt, model=model, system_prompt=system_prompt
+        )
 
         # Parse the two blocks
         direct_response = ""
@@ -780,7 +898,9 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             updated_contract = current_content
 
         # Save assistant message to persistent DB history
-        self.save_chat_message(incident_id, "assistant", direct_response, model_name=model)
+        self.save_chat_message(
+            incident_id, "assistant", direct_response, model_name=model
+        )
 
         # Hygiene check on contract
         required_headers = ["CONFIRMED FACTS", "SPEC & HARD CONSTRAINTS"]
@@ -794,7 +914,9 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             self.save_raw_investigation(incident_id, safe_doc)
             return {"response": direct_response, "updated_doc": safe_doc}
 
-    def convert_to_implementation(self, incident_id: str, initial_spec: str = "") -> str:
+    def convert_to_implementation(
+        self, incident_id: str, initial_spec: str = ""
+    ) -> str:
         """
         Transition an RCA investigation into an Implementation contract.
         Archives the previous RCA contract to rca_pre_implementation.md and writes new implementation contract.
@@ -807,12 +929,14 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
 
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         base_jira_url = JIRA_URL.rstrip("/")
-        
+
         # Extract title if possible
         title = incident_id
         for line in current_content.splitlines():
             if line.startswith("# ") and incident_id in line:
-                title = line.replace("# ", "").replace(f"[{incident_id}]", "").strip(" -:")
+                title = (
+                    line.replace("# ", "").replace(f"[{incident_id}]", "").strip(" -:")
+                )
                 break
 
         specs = f"- [x] RCA Completed (archived in ticket directory)\n- [ ] {initial_spec or 'Implement required fix based on RCA findings'}"
@@ -827,7 +951,7 @@ Output ONLY the markdown contract starting with '# JIRA INVESTIGATION:'.
             specs=specs,
             baseline="- (Baseline to be established with initial change)",
             failed_attempts="- (None in implementation phase yet)",
-            next_step="- [ ] Define first minimal testable change"
+            next_step="- [ ] Define first minimal testable change",
         )
         self.save_raw_investigation(incident_id, new_content)
         return new_content

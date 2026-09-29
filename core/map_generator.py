@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 import yaml
 
+
 class RepoScanner:
     """Performs 100% local, zero-token structural analysis on target repositories."""
 
@@ -20,7 +21,7 @@ class RepoScanner:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             return res.stdout.strip()
         except Exception:
@@ -29,14 +30,24 @@ class RepoScanner:
     def get_file_tree(self, max_depth: int = 3) -> str:
         """Returns filtered file tree excluding hidden dirs, caches, virtualenvs."""
         ignore_dirs = {
-            ".git", ".venv", "venv", "__pycache__", ".pytest_cache",
-            ".mypy_cache", ".idea", ".vscode", "node_modules", ".tox"
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".idea",
+            ".vscode",
+            "node_modules",
+            ".tox",
         }
         lines: List[str] = []
-        base_parts = len(self.repo_path.parts)
+        len(self.repo_path.parts)
 
         for root, dirs, files in os.walk(self.repo_path):
-            dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+            dirs[:] = [
+                d for d in dirs if d not in ignore_dirs and not d.startswith(".")
+            ]
             rel_path = Path(root).relative_to(self.repo_path)
             depth = len(rel_path.parts)
             if depth > max_depth:
@@ -59,7 +70,9 @@ class RepoScanner:
         count = 0
         for py_file in py_files:
             rel = str(py_file.relative_to(self.repo_path))
-            if any(part.startswith((".", "venv", "__pycache__")) for part in py_file.parts):
+            if any(
+                part.startswith((".", "venv", "__pycache__")) for part in py_file.parts
+            ):
                 continue
 
             try:
@@ -88,7 +101,7 @@ class RepoScanner:
         ansible_meta: Dict[str, Any] = {
             "entry_playbooks": [],
             "roles": [],
-            "group_vars_keys": {}
+            "group_vars_keys": {},
         }
 
         # Check entry playbooks
@@ -100,7 +113,11 @@ class RepoScanner:
         # Check roles
         roles_dir = self.repo_path / "roles"
         if roles_dir.exists() and roles_dir.is_dir():
-            ansible_meta["roles"] = [d.name for d in roles_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+            ansible_meta["roles"] = [
+                d.name
+                for d in roles_dir.iterdir()
+                if d.is_dir() and not d.name.startswith(".")
+            ]
 
         # Extract variable keys from group_vars
         gv_dir = self.repo_path / "group_vars"
@@ -130,12 +147,14 @@ class RepoScanner:
             "## 1. FILE TREE (Trimmed)",
             "```",
             tree,
-            "```\n"
+            "```\n",
         ]
 
         if ansible_meta["entry_playbooks"] or ansible_meta["roles"]:
             payload.append("## 2. ANSIBLE SURFACE")
-            payload.append(f"- Entry Playbooks: {', '.join(ansible_meta['entry_playbooks'])}")
+            payload.append(
+                f"- Entry Playbooks: {', '.join(ansible_meta['entry_playbooks'])}"
+            )
             payload.append(f"- Roles: {', '.join(ansible_meta['roles'])}")
             if ansible_meta["group_vars_keys"]:
                 payload.append("- Group Vars Keys:")

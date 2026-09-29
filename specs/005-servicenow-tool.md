@@ -2,9 +2,9 @@
 
 **Goal:** ServiceNow (SNOW) REST API integration for Change Management (CHG) and Incident Management (INC) processes, enabling maintenance window verification and customer communication generation.
 
-**Status:** Draft  
-**Date:** 2026-09-24  
-**Version:** 1.0.0  
+**Status:** Draft
+**Date:** 2026-09-24
+**Version:** 1.0.0
 
 ---
 

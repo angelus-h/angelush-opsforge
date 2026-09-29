@@ -6,28 +6,31 @@ import urllib.request
 import urllib.error
 from typing import List, Optional
 
+
 class LogSanitizer:
     """Strips terminal escape sequences and non-essential lines, extracting only error cores."""
 
-    ANSI_ESCAPE = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
-    
+    ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
     # Enhanced keywords including Jenkins, OpenShift/K8s, Ansible, Python, Java stack traces
     ERROR_KEYWORDS = re.compile(
-        r'('
-        r'failed|fatal|error|traceback|exception|panic|denied|timed out|refused|'
-        r'hudson\.AbortException|org\.jenkinsci|script returned exit code [1-9]|'
-        r'Build step .* marked build as failure|FAILED! =>|'
-        r'CrashLoopBackOff|ImagePullBackOff|OOMKilled|Error from server'
-        r')',
-        re.IGNORECASE
+        r"("
+        r"failed|fatal|error|traceback|exception|panic|denied|timed out|refused|"
+        r"hudson\.AbortException|org\.jenkinsci|script returned exit code [1-9]|"
+        r"Build step .* marked build as failure|FAILED! =>|"
+        r"CrashLoopBackOff|ImagePullBackOff|OOMKilled|Error from server"
+        r")",
+        re.IGNORECASE,
     )
 
     @classmethod
     def strip_ansi(cls, text: str) -> str:
-        return cls.ANSI_ESCAPE.sub('', text)
+        return cls.ANSI_ESCAPE.sub("", text)
 
     @classmethod
-    def extract_error_core(cls, raw_log: str, context_lines: int = 4, max_total_lines: int = 150) -> str:
+    def extract_error_core(
+        cls, raw_log: str, context_lines: int = 4, max_total_lines: int = 150
+    ) -> str:
         clean = cls.strip_ansi(raw_log)
         lines = clean.splitlines()
 
@@ -66,10 +69,13 @@ class LogSanitizer:
     def normalize_jenkins_url(cls, raw_url: str) -> str:
         """Normalizes various Jenkins URLs into a canonical .../consoleText URL."""
         url = raw_url.strip().rstrip("/")
-        
+
         # Blue Ocean URL translation:
         # e.g., https://jenkins.../blue/organizations/jenkins/job-name/detail/job-name/42/pipeline
-        bo_match = re.match(r"^(https?://[^/]+)/blue/organizations/jenkins/([^/]+)/detail/([^/]+)/(\d+)(?:/.*)?$", url)
+        bo_match = re.match(
+            r"^(https?://[^/]+)/blue/organizations/jenkins/([^/]+)/detail/([^/]+)/(\d+)(?:/.*)?$",
+            url,
+        )
         if bo_match:
             base_host, _folder, job_name, build_num = bo_match.groups()
             return f"{base_host}/job/{job_name}/{build_num}/consoleText"
@@ -84,18 +90,20 @@ class LogSanitizer:
             "/logText/progressiveText",
             "/logText",
             "/log",
-            "/display/redirect"
+            "/display/redirect",
         ]
         for sfx in suffixes_to_strip:
             if url.endswith(sfx):
-                url = url[:-len(sfx)]
+                url = url[: -len(sfx)]
                 break
 
         url = url.rstrip("/")
         return f"{url}/consoleText"
 
     @classmethod
-    def fetch_jenkins_log(cls, build_url: str, user: Optional[str] = None, token: Optional[str] = None) -> str:
+    def fetch_jenkins_log(
+        cls, build_url: str, user: Optional[str] = None, token: Optional[str] = None
+    ) -> str:
         """Fetches raw console text from a Jenkins build URL with authentication support."""
         if not build_url or not build_url.strip():
             return "Error: Empty Jenkins URL provided."
@@ -103,8 +111,12 @@ class LogSanitizer:
         clean_url = cls.normalize_jenkins_url(build_url)
 
         # Fallback to environment variables if credentials not explicitly passed
-        active_user = (user or os.getenv("JENKINS_USER") or os.getenv("JENKINS_USERNAME") or "").strip()
-        active_token = (token or os.getenv("JENKINS_TOKEN") or os.getenv("JENKINS_API_TOKEN") or "").strip()
+        active_user = (
+            user or os.getenv("JENKINS_USER") or os.getenv("JENKINS_USERNAME") or ""
+        ).strip()
+        active_token = (
+            token or os.getenv("JENKINS_TOKEN") or os.getenv("JENKINS_API_TOKEN") or ""
+        ).strip()
 
         # If user is blank but email is present in env, default username to email local-part
         if not active_user and active_token:
@@ -114,15 +126,14 @@ class LogSanitizer:
 
         req = urllib.request.Request(
             clean_url,
-            headers={
-                "User-Agent": "SRE-Hub/1.0",
-                "Accept": "text/plain, */*"
-            }
+            headers={"User-Agent": "SRE-Hub/1.0", "Accept": "text/plain, */*"},
         )
 
         if active_token:
             if active_user:
-                auth = base64.b64encode(f"{active_user}:{active_token}".encode()).decode()
+                auth = base64.b64encode(
+                    f"{active_user}:{active_token}".encode()
+                ).decode()
                 req.add_header("Authorization", f"Basic {auth}")
             else:
                 # If only token is available, check if token itself is user:token, otherwise send Bearer
@@ -134,7 +145,10 @@ class LogSanitizer:
 
         # Setup SSL context that handles corporate internal CAs gracefully
         ssl_ctx = ssl.create_default_context()
-        for ca_bundle in ["/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt"]:
+        for ca_bundle in [
+            "/etc/pki/tls/certs/ca-bundle.crt",
+            "/etc/ssl/certs/ca-certificates.crt",
+        ]:
             if os.path.exists(ca_bundle):
                 try:
                     ssl_ctx.load_verify_locations(ca_bundle)
@@ -153,7 +167,9 @@ class LogSanitizer:
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 auth_hint = (
-                    "Authenticated request" if active_token else "Unauthenticated request (No Jenkins Token provided)"
+                    "Authenticated request"
+                    if active_token
+                    else "Unauthenticated request (No Jenkins Token provided)"
                 )
                 return (
                     f"Error: Jenkins returned HTTP 404 Not Found at `{clean_url}`.\n\n"

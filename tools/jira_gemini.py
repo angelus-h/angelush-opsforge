@@ -27,12 +27,14 @@ from pathlib import Path
 JIRA_API_PATH = "/rest/api/3/search/jql"
 JIRA_FIELDS = "summary,status,description"
 
+
 def _env(name):
     """Get required env var or exit."""
     val = os.environ.get(name)
     if not val:
         sys.exit(f"error: {name} not set")
     return val
+
 
 def search_jql(base_url, auth_header, jql, max_results=100):
     """Fetch Jira issues by JQL query."""
@@ -43,30 +45,38 @@ def search_jql(base_url, auth_header, jql, max_results=100):
         if next_token:
             params["nextPageToken"] = next_token
         url = f"{base_url}{JIRA_API_PATH}?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(url, headers={
-            "Accept": "application/json",
-            "Authorization": auth_header,
-        })
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "Authorization": auth_header,
+            },
+        )
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 data = json.load(resp)
         except urllib.error.HTTPError as e:
-            sys.exit(f"error: Jira HTTP {e.code}: {e.read().decode(errors='replace')[:300]}")
+            sys.exit(
+                f"error: Jira HTTP {e.code}: {e.read().decode(errors='replace')[:300]}"
+            )
         except urllib.error.URLError as e:
             sys.exit(f"error: cannot reach Jira ({e.reason})")
 
         for issue in data.get("issues", []):
             f = issue.get("fields", {})
-            issues.append({
-                "key": issue.get("key"),
-                "summary": f.get("summary"),
-                "status": (f.get("status") or {}).get("name"),
-                "description": f.get("description", ""),
-            })
+            issues.append(
+                {
+                    "key": issue.get("key"),
+                    "summary": f.get("summary"),
+                    "status": (f.get("status") or {}).get("name"),
+                    "description": f.get("description", ""),
+                }
+            )
         next_token = data.get("nextPageToken")
         if data.get("isLast", True) or not next_token:
             break
     return issues
+
 
 def bucket(issue):
     """Categorize issue by status."""
@@ -77,6 +87,7 @@ def bucket(issue):
         return "in_review"
     return "other"
 
+
 def fetch_my_tickets():
     """Fetch user's assigned tickets grouped by status."""
     base_url = _env("JIRA_URL").rstrip("/")
@@ -84,13 +95,16 @@ def fetch_my_tickets():
     token = _env("JIRA_API_TOKEN")
     auth_header = "Basic " + base64.b64encode(f"{email}:{token}".encode()).decode()
 
-    open_jql = ("assignee = currentUser() AND status not in (Closed, Done, Resolved) "
-                "ORDER BY updated DESC")
+    open_jql = (
+        "assignee = currentUser() AND status not in (Closed, Done, Resolved) "
+        "ORDER BY updated DESC"
+    )
     result = {"in_progress": [], "in_review": [], "other": []}
     for issue in search_jql(base_url, auth_header, open_jql):
         result[bucket(issue)].append(issue)
 
     return result
+
 
 def analyze_with_llm(prompt):
     """Analyze using Gemini Flash via llm CLI with automated fallbacks."""
@@ -100,7 +114,7 @@ def analyze_with_llm(prompt):
                 ["llm", "prompt", prompt, "-m", m],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             return result.stdout
         except subprocess.CalledProcessError:
@@ -109,13 +123,14 @@ def analyze_with_llm(prompt):
             sys.exit("error: llm CLI not found (install via: pip install llm)")
     sys.exit("error: llm analysis failed across all candidate models")
 
+
 def cmd_summarize(args):
     """Summarize my assigned tickets."""
     tickets = fetch_my_tickets()
 
-    print("="*60)
+    print("=" * 60)
     print("MY JIRA TICKETS")
-    print("="*60)
+    print("=" * 60)
 
     total = 0
     for section in ["in_progress", "in_review", "other"]:
@@ -139,7 +154,9 @@ def cmd_summarize(args):
                 lines.append(f"[{issue['key']}] {issue['summary']} ({issue['status']})")
 
     context = f"Analyze my {total} current Jira tickets:\n\n" + "\n".join(lines)
-    prompt = context + """
+    prompt = (
+        context
+        + """
 
 Provide concise analysis:
 1. **Priorities**: What should I focus on first?
@@ -148,13 +165,15 @@ Provide concise analysis:
 4. **Recommendations**: Next steps or dependencies to watch
 
 Keep it under 300 words."""
+    )
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("GEMINI ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
     analysis = analyze_with_llm(prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
+
 
 def cmd_search(args):
     """Search Jira by JQL + analyze results."""
@@ -178,7 +197,9 @@ def cmd_search(args):
     # Analyze with Gemini
     lines = [f"[{i['key']}] {i['summary']} ({i['status']})" for i in issues]
     context = f"Analyze these {len(lines)} Jira search results:\n\n" + "\n".join(lines)
-    prompt = context + """
+    prompt = (
+        context
+        + """
 
 Provide analysis:
 1. **Common Themes**: What patterns do you see?
@@ -187,13 +208,15 @@ Provide analysis:
 4. **Recommendations**: What to prioritize?
 
 Keep it concise."""
+    )
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
     analysis = analyze_with_llm(prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
+
 
 def cmd_analyze(args):
     """Analyze single ticket with detailed investigation."""
@@ -213,11 +236,14 @@ def cmd_analyze(args):
     issue = issues[0]
     print(f"{issue['key']} — {issue['summary']}")
     print(f"Status: {issue['status']}")
-    if issue['description']:
+    if issue["description"]:
         print(f"Description: {issue['description']}\n")
 
     # Check for existing investigation directory
-    default_inv = os.getenv("INVESTIGATIONS_DIR", os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"))
+    default_inv = os.getenv(
+        "INVESTIGATIONS_DIR",
+        os.path.expanduser("~/ai/konflux-lumino/investigations/detailed"),
+    )
     inv_base = Path(default_inv)
     inv_dir = inv_base / issue_key
 
@@ -226,17 +252,19 @@ def cmd_analyze(args):
         # Read previous findings if any
         findings_file = inv_dir / "analysis.md"
         if findings_file.exists():
-            print(f"   Reading previous analysis...\n")
+            print("   Reading previous analysis...\n")
     else:
         print(f"📁 Creating new investigation: {inv_dir}")
         inv_dir.mkdir(parents=True, exist_ok=True)
 
     # Detailed analysis with Gemini
     context = f"Provide detailed investigation for Jira ticket:\n\n[{issue['key']}] {issue['summary']}\nStatus: {issue['status']}"
-    if issue['description']:
+    if issue["description"]:
         context += f"\nDescription: {issue['description']}"
 
-    prompt = context + """
+    prompt = (
+        context
+        + """
 
 Provide comprehensive analysis with these sections:
 
@@ -274,23 +302,27 @@ Brief 1-2 sentence overview.
 - Stakeholders to involve
 
 Be detailed but concise. Use markdown formatting."""
+    )
 
-    print("="*60)
+    print("=" * 60)
     print("DETAILED ANALYSIS")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
     analysis = analyze_with_llm(prompt)
     print(analysis)
-    print("="*60)
+    print("=" * 60)
 
     # Save analysis to file
     analysis_file = inv_dir / "analysis.md"
     with open(analysis_file, "w") as f:
         f.write(f"# {issue_key}: {issue['summary']}\n\n")
         f.write(f"**Status**: {issue['status']}\n")
-        f.write(f"**Generated**: {subprocess.run(['date', '-u', '+%Y-%m-%d %H:%M:%S'], capture_output=True, text=True).stdout.strip()}\n\n")
+        f.write(
+            f"**Generated**: {subprocess.run(['date', '-u', '+%Y-%m-%d %H:%M:%S'], capture_output=True, text=True).stdout.strip()}\n\n"
+        )
         f.write(analysis)
 
     print(f"\n✅ Analysis saved to: {analysis_file}")
+
 
 def main():
     ap = argparse.ArgumentParser(description="Jira + Gemini analyzer", add_help=True)
@@ -320,6 +352,7 @@ def main():
         cmd_analyze(args)
     elif args.command == "search":
         cmd_search(args)
+
 
 if __name__ == "__main__":
     main()

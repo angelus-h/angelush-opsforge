@@ -8,6 +8,7 @@ env_file = BASE_DIR / ".env"
 if env_file.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(env_file)
     except ImportError:
         with open(env_file, "r", encoding="utf-8") as f:
@@ -36,32 +37,41 @@ SRE_USER_HANDLE = os.getenv("SRE_USER_HANDLE", f"@{os.getenv('USER', 'username')
 SLACK_WORKSPACE_URL = os.getenv("SLACK_WORKSPACE_URL", "https://slack.com").rstrip("/")
 GITLAB_URL = os.getenv("GITLAB_URL", "https://gitlab.com").rstrip("/")
 JIRA_URL = os.getenv("JIRA_URL", "https://jira.example.com").rstrip("/")
-PAGERDUTY_API_TOKEN = os.getenv("PAGERDUTY_API_TOKEN") or os.getenv("PAGERDUTY_API_KEY", "")
-PAGERDUTY_API_URL = os.getenv("PAGERDUTY_API_URL", "https://api.pagerduty.com").rstrip("/")
+PAGERDUTY_API_TOKEN = os.getenv("PAGERDUTY_API_TOKEN") or os.getenv(
+    "PAGERDUTY_API_KEY", ""
+)
+PAGERDUTY_API_URL = os.getenv("PAGERDUTY_API_URL", "https://api.pagerduty.com").rstrip(
+    "/"
+)
 
 # Default base directory for repositories (reads REPOS_DIR or falls back to ~/repos)
 DEFAULT_REPOS_DIR = Path(os.getenv("REPOS_DIR", Path.home() / "repos"))
+
 
 def discover_local_repos(base_dir: Path = DEFAULT_REPOS_DIR) -> list[str]:
     """Auto-discovers git repositories inside the base repos directory."""
     if not base_dir.exists() or not base_dir.is_dir():
         return []
-    
+
     repos = []
     for item in sorted(base_dir.iterdir()):
         if item.is_dir() and (item / ".git").exists():
             repos.append(str(item))
-            
+
     if not repos:
         repos = [str(item) for item in sorted(base_dir.iterdir()) if item.is_dir()]
-        
+
     return repos
+
 
 DEFAULT_REPOS = discover_local_repos()
 
 # Default investigations output directory
 INVESTIGATIONS_DIR = Path(
-    os.getenv("INVESTIGATIONS_DIR", str(BASE_DIR.parent.parent / "investigations" / "detailed"))
+    os.getenv(
+        "INVESTIGATIONS_DIR",
+        str(BASE_DIR.parent.parent / "investigations" / "detailed"),
+    )
 )
 DEFAULT_INVESTIGATIONS_DIR = INVESTIGATIONS_DIR
 

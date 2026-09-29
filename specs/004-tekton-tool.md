@@ -2,9 +2,9 @@
 
 **Goal:** Analyze Konflux and OpenShift Pipelines (Tekton) PipelineRuns and TaskRuns, extracting only the specific failed step (`step-...`) from ten-thousand-line CI/CD logs to minimize LLM token usage.
 
-**Status:** Draft  
-**Date:** 2026-09-24  
-**Version:** 1.0.0  
+**Status:** Draft
+**Date:** 2026-09-24
+**Version:** 1.0.0
 
 ---
 

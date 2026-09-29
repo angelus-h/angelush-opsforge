@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 
+
 class SREExternalTools:
     """Invokes self-contained local tools housed in the tools/ directory."""
 
@@ -16,23 +17,34 @@ class SREExternalTools:
     def run_openshift_pods(cls, namespace: str, failing_only: bool = True) -> str:
         if not cls.OPENSHIFT_SCRIPT.exists():
             return f"Error: OpenShift tool not found at {cls.OPENSHIFT_SCRIPT}"
-            
+
         cmd = ["python3", str(cls.OPENSHIFT_SCRIPT), "pods", "--namespace", namespace]
         if not failing_only:
             cmd.append("--all")
-            
+
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
         except subprocess.CalledProcessError as e:
             return f"OpenShift pods error:\n{e.stderr or e.stdout}"
-            
+
     @classmethod
-    def run_openshift_diagnose(cls, pod_name: str, namespace: str, tail: int = 100) -> str:
+    def run_openshift_diagnose(
+        cls, pod_name: str, namespace: str, tail: int = 100
+    ) -> str:
         if not cls.OPENSHIFT_SCRIPT.exists():
             return f"Error: OpenShift tool not found at {cls.OPENSHIFT_SCRIPT}"
-            
-        cmd = ["python3", str(cls.OPENSHIFT_SCRIPT), "diagnose", pod_name, "--namespace", namespace, "--tail", str(tail)]
+
+        cmd = [
+            "python3",
+            str(cls.OPENSHIFT_SCRIPT),
+            "diagnose",
+            pod_name,
+            "--namespace",
+            namespace,
+            "--tail",
+            str(tail),
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
@@ -43,8 +55,16 @@ class SREExternalTools:
     def run_tekton_list(cls, namespace: str, limit: int = 10) -> str:
         if not cls.TEKTON_SCRIPT.exists():
             return f"Error: Tekton tool not found at {cls.TEKTON_SCRIPT}"
-            
-        cmd = ["python3", str(cls.TEKTON_SCRIPT), "list-failed", "--namespace", namespace, "--limit", str(limit)]
+
+        cmd = [
+            "python3",
+            str(cls.TEKTON_SCRIPT),
+            "list-failed",
+            "--namespace",
+            namespace,
+            "--limit",
+            str(limit),
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
@@ -55,8 +75,15 @@ class SREExternalTools:
     def run_tekton_diagnose_pr(cls, pr_name: str, namespace: str) -> str:
         if not cls.TEKTON_SCRIPT.exists():
             return f"Error: Tekton tool not found at {cls.TEKTON_SCRIPT}"
-            
-        cmd = ["python3", str(cls.TEKTON_SCRIPT), "pipelinerun", pr_name, "--namespace", namespace]
+
+        cmd = [
+            "python3",
+            str(cls.TEKTON_SCRIPT),
+            "pipelinerun",
+            pr_name,
+            "--namespace",
+            namespace,
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
@@ -67,8 +94,15 @@ class SREExternalTools:
     def run_tekton_diagnose_tr(cls, tr_name: str, namespace: str) -> str:
         if not cls.TEKTON_SCRIPT.exists():
             return f"Error: Tekton tool not found at {cls.TEKTON_SCRIPT}"
-            
-        cmd = ["python3", str(cls.TEKTON_SCRIPT), "taskrun", tr_name, "--namespace", namespace]
+
+        cmd = [
+            "python3",
+            str(cls.TEKTON_SCRIPT),
+            "taskrun",
+            tr_name,
+            "--namespace",
+            namespace,
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
@@ -76,7 +110,9 @@ class SREExternalTools:
             return f"Tekton TaskRun diagnose error:\n{e.stderr or e.stdout}"
 
     @classmethod
-    def run_slack_analyze(cls, target: str, prompt: str = "", limit: int = 50, search: str = "") -> str:
+    def run_slack_analyze(
+        cls, target: str, prompt: str = "", limit: int = 50, search: str = ""
+    ) -> str:
         if not cls.SLACK_SCRIPT.exists():
             return f"Error: Slack tool not found at {cls.SLACK_SCRIPT}"
 
@@ -92,7 +128,9 @@ class SREExternalTools:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
         except subprocess.CalledProcessError as e:
-            return f"Slack analysis error (code {e.returncode}):\n{e.stderr or e.stdout}"
+            return (
+                f"Slack analysis error (code {e.returncode}):\n{e.stderr or e.stdout}"
+            )
 
     @classmethod
     def run_jira_command(cls, mode: str = "summarize", target: str = "") -> str:
@@ -129,9 +167,16 @@ class SREExternalTools:
         if not cls.PAGERDUTY_SCRIPT.exists():
             return f"Error: PagerDuty tool not found at {cls.PAGERDUTY_SCRIPT}"
 
-        cmd = ["python3", str(cls.PAGERDUTY_SCRIPT), command, *[str(a) for a in args if str(a)]]
+        cmd = [
+            "python3",
+            str(cls.PAGERDUTY_SCRIPT),
+            command,
+            *[str(a) for a in args if str(a)],
+        ]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout.strip()
         except subprocess.CalledProcessError as e:
-            return f"PagerDuty tool error (code {e.returncode}):\n{e.stderr or e.stdout}"
+            return (
+                f"PagerDuty tool error (code {e.returncode}):\n{e.stderr or e.stdout}"
+            )

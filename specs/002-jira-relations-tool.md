@@ -2,9 +2,9 @@
 
 **Goal:** Automatically fetch relationships between Jira tickets (`blocks`, `is_blocked_by`, `relates_to`, `parent`, `subtasks`) from the Jira REST API, persist them in the SQLite `ticket_relations` table, and inject them into the Gemini context.
 
-**Status:** Draft  
-**Date:** 2026-09-24  
-**Version:** 1.0.0  
+**Status:** Draft
+**Date:** 2026-09-24
+**Version:** 1.0.0
 
 ---
 

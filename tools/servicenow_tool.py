@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -33,7 +33,7 @@ CHG_STATES = {
     "5": "Implement (Active Window)",
     "6": "Review",
     "7": "Closed",
-    "8": "Canceled"
+    "8": "Canceled",
 }
 
 INC_STATES = {
@@ -42,7 +42,7 @@ INC_STATES = {
     "3": "On Hold",
     "6": "Resolved",
     "7": "Closed",
-    "8": "Canceled"
+    "8": "Canceled",
 }
 
 
@@ -55,20 +55,19 @@ def get_snow_headers() -> Dict[str, str]:
     return {
         "Authorization": auth,
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
 
 def query_snow_record(table: str, number_or_sys_id: str) -> Optional[Dict]:
     """Queries a single ServiceNow record by number (e.g. CHG0123456, INC0987654) or sys_id."""
-    instance_url = os.getenv("SERVICENOW_INSTANCE_URL", "https://redhathub.service-now.com").rstrip("/")
+    instance_url = os.getenv(
+        "SERVICENOW_INSTANCE_URL", "https://redhathub.service-now.com"
+    ).rstrip("/")
     headers = get_snow_headers()
     target = number_or_sys_id.strip().upper()
 
-    params = {
-        "sysparm_query": f"number={target}^ORsys_id={target}",
-        "sysparm_limit": 1
-    }
+    params = {"sysparm_query": f"number={target}^ORsys_id={target}", "sysparm_limit": 1}
     url = f"{instance_url}/api/now/table/{table}?{urllib.parse.urlencode(params)}"
 
     req = urllib.request.Request(url, headers=headers)
@@ -93,13 +92,17 @@ def get_record_auto(number: str) -> Optional[Dict]:
         rec = query_snow_record("change_request", clean_num)
         if rec:
             rec["_record_type"] = "Change Request"
-            rec["_state_label"] = CHG_STATES.get(str(rec.get("state")), f"State {rec.get('state')}")
+            rec["_state_label"] = CHG_STATES.get(
+                str(rec.get("state")), f"State {rec.get('state')}"
+            )
         return rec
     elif clean_num.startswith("INC"):
         rec = query_snow_record("incident", clean_num)
         if rec:
             rec["_record_type"] = "Incident"
-            rec["_state_label"] = INC_STATES.get(str(rec.get("state")), f"State {rec.get('state')}")
+            rec["_state_label"] = INC_STATES.get(
+                str(rec.get("state")), f"State {rec.get('state')}"
+            )
         return rec
     elif clean_num.startswith("RITM"):
         rec = query_snow_record("sc_req_item", clean_num)
@@ -113,11 +116,15 @@ def get_record_auto(number: str) -> Optional[Dict]:
         return rec
     else:
         # Default try change_request then incident
-        rec = query_snow_record("change_request", clean_num) or query_snow_record("incident", clean_num)
+        rec = query_snow_record("change_request", clean_num) or query_snow_record(
+            "incident", clean_num
+        )
         return rec
 
 
-def draft_snow_change_from_jira(jira_key: str, request_type: str = "Standard Change") -> str:
+def draft_snow_change_from_jira(
+    jira_key: str, request_type: str = "Standard Change"
+) -> str:
     """
     Synthesizes a structured ServiceNow Change Request or Firewall/Access Request draft
     from the Jira investigation contract using Gemini.
@@ -127,7 +134,10 @@ def draft_snow_change_from_jira(jira_key: str, request_type: str = "Standard Cha
     contract_md = ""
 
     with get_db() as conn:
-        row = conn.execute("SELECT contract_md, title FROM investigations WHERE jira_key = ?", (safe_key,)).fetchone()
+        row = conn.execute(
+            "SELECT contract_md, title FROM investigations WHERE jira_key = ?",
+            (safe_key,),
+        ).fetchone()
         if row:
             contract_md = row["contract_md"]
             jira_title = row["title"]
@@ -182,13 +192,16 @@ OUTPUT STRUCTURE MUST BE EXACTLY AS FOLLOWS (Markdown format with codeblocks):
 - **Estimated Duration**: (e.g. 30 minutes)
 """
 
-    draft_result = LLMBridge.execute(user_prompt, model="gemini-3.6-flash", system_prompt=system_prompt)
+    draft_result = LLMBridge.execute(
+        user_prompt, model="gemini-3.6-flash", system_prompt=system_prompt
+    )
 
     # Save to artifacts
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     artifact_filename = f"servicenow_draft_{timestamp}.md"
 
     from core.investigation_tracker import InvestigationTracker
+
     tracker = InvestigationTracker()
     tracker.save_artifact(safe_key, artifact_filename, draft_result)
 
@@ -203,7 +216,9 @@ def link_snow_record(jira_key: str, snow_number: str) -> Dict:
 
     rec = get_record_auto(safe_snow)
     if not rec:
-        raise ValueError(f"Could not find ServiceNow record '{safe_snow}'. Check permissions or number.")
+        raise ValueError(
+            f"Could not find ServiceNow record '{safe_snow}'. Check permissions or number."
+        )
 
     summary = rec.get("short_description", "")
     state_label = rec.get("_state_label", str(rec.get("state", "")))
@@ -218,14 +233,14 @@ def link_snow_record(jira_key: str, snow_number: str) -> Dict:
                 summary = excluded.summary,
                 status = excluded.status
             """,
-            (safe_jira, safe_snow, f"has_snow_{rec_type}", summary, state_label)
+            (safe_jira, safe_snow, f"has_snow_{rec_type}", summary, state_label),
         )
 
     return {
         "number": safe_snow,
         "type": rec.get("_record_type", "ServiceNow"),
         "summary": summary,
-        "state": state_label
+        "state": state_label,
     }
 
 
@@ -240,7 +255,9 @@ def import_snow_record_to_investigation(jira_key: str, snow_number: str) -> Dict
 
     rec = get_record_auto(safe_snow)
     if not rec:
-        raise ValueError(f"Could not find ServiceNow record '{safe_snow}'. Check permissions or number.")
+        raise ValueError(
+            f"Could not find ServiceNow record '{safe_snow}'. Check permissions or number."
+        )
 
     rec_type = rec.get("_record_type", "Record")
     state_label = rec.get("_state_label", str(rec.get("state", "")))
@@ -258,10 +275,10 @@ def import_snow_record_to_investigation(jira_key: str, snow_number: str) -> Dict
 
     # Format into markdown artifact
     md = f"""# 🎫 ServiceNow {rec_type}: {safe_snow}
-**Summary:** {short_desc}  
-**State:** {state_label} (Code: {rec.get('state')})  
-**Created:** {created} | **Updated:** {updated}  
-**Maintenance Window:** {start_d} -> {end_d}  
+**Summary:** {short_desc}
+**State:** {state_label} (Code: {rec.get('state')})
+**Created:** {created} | **Updated:** {updated}
+**Maintenance Window:** {start_d} -> {end_d}
 
 ## 1. Description & Scope
 {desc}
@@ -289,6 +306,7 @@ def import_snow_record_to_investigation(jira_key: str, snow_number: str) -> Dict
 """
 
     from core.investigation_tracker import InvestigationTracker
+
     tracker = InvestigationTracker()
     artifact_name = f"servicenow_{safe_snow}.md"
     tracker.save_artifact(safe_jira, artifact_name, md)
@@ -299,7 +317,7 @@ def import_snow_record_to_investigation(jira_key: str, snow_number: str) -> Dict
         target_key=safe_snow,
         relation_type=f"has_snow_{rec_type.lower().replace(' ', '_')}",
         summary=short_desc,
-        status=state_label
+        status=state_label,
     )
 
     return {
@@ -308,7 +326,7 @@ def import_snow_record_to_investigation(jira_key: str, snow_number: str) -> Dict
         "summary": short_desc,
         "state": state_label,
         "markdown": md,
-        "artifact_file": artifact_name
+        "artifact_file": artifact_name,
     }
 
 
@@ -319,12 +337,16 @@ def analyze_vulnerability_ticket(jira_key: str) -> str:
     generates a comprehensive SRE diagnostic and CVE discovery guide.
     """
     import re
+
     safe_key = jira_key.strip().upper()
 
     from tools.jira_relations import get_jira_auth_headers
+
     base_url = os.getenv("JIRA_URL", "https://redhat.atlassian.net").rstrip("/")
     headers = get_jira_auth_headers()
-    endpoint = f"{base_url}/rest/api/3/issue/{safe_key}?fields=summary,status,description"
+    endpoint = (
+        f"{base_url}/rest/api/3/issue/{safe_key}?fields=summary,status,description"
+    )
 
     req = urllib.request.Request(endpoint, headers=headers)
     with urllib.request.urlopen(req, timeout=20) as resp:
@@ -355,7 +377,11 @@ def analyze_vulnerability_ticket(jira_key: str) -> str:
     vit_count = len(set(vits))
 
     sys_match = re.search(r"for\s+([A-Za-z0-9_\-]+)\s*-\s*([A-Za-z0-9_\-]+)", summary)
-    system_name = f"{sys_match.group(1)} - {sys_match.group(2)}" if sys_match else "DGIT-001 (dist-git)"
+    system_name = (
+        f"{sys_match.group(1)} - {sys_match.group(2)}"
+        if sys_match
+        else "DGIT-001 (dist-git)"
+    )
 
     system_prompt = (
         "You are a Senior Principal SRE and Security Operations Lead analyzing an enterprise Qualys Vulnerability Patching assignment.\n"
@@ -381,10 +407,13 @@ Provide a structured, actionable SRE investigation guide:
 5. **Post-Patch Verification**: How to confirm the system is clean and ready for Qualys rescan.
 """
 
-    analysis = LLMBridge.execute(prompt, model="gemini-3.6-flash", system_prompt=system_prompt)
+    analysis = LLMBridge.execute(
+        prompt, model="gemini-3.6-flash", system_prompt=system_prompt
+    )
 
     # Save to artifacts
     from core.investigation_tracker import InvestigationTracker
+
     tracker = InvestigationTracker()
     art_name = f"vulnerability_analysis_{vul_id}.md"
     tracker.save_artifact(safe_key, art_name, analysis)
@@ -424,4 +453,6 @@ if __name__ == "__main__":
         key = sys.argv[2]
         num = sys.argv[3]
         res = link_snow_record(key, num)
-        print(f"✅ Linked {key} -> {res['number']} ({res['type']}): {res['summary']} [{res['state']}]")
+        print(
+            f"✅ Linked {key} -> {res['number']} ({res['type']}): {res['summary']} [{res['state']}]"
+        )

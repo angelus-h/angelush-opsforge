@@ -2,9 +2,9 @@
 
 **Goal:** Fast, token-efficient OpenShift/Kubernetes diagnostic tool that fetches and masks logs of failing pods, crashed containers, and warning events, making them directly attachable to the Jira investigation contract.
 
-**Status:** Draft  
-**Date:** 2026-09-24  
-**Version:** 1.0.0  
+**Status:** Draft
+**Date:** 2026-09-24
+**Version:** 1.0.0
 
 ---
 
@@ -12,7 +12,7 @@
 
 - **Common problems:** `CrashLoopBackOff`, `OOMKilled`, `ImagePullBackOff`, `CreateContainerConfigError`.
 - **Preventing token waste:** A full `oc describe pod` or a multi-thousand line pod log cannot be passed directly to the LLM.
-- **The solution:** 
+- **The solution:**
   1. Local Python pre-filtering: extract only the last 50-100 lines of crashed containers (`oc logs -c <container> --tail=100 -p`).
   2. Automatic masking of sensitive data (tokens, passwords, cert keys) via `core/log_sanitizer.py`.
   3. One-click save as an artifact to the investigation (`save_artifact(jira_key, "openshift_pod_error.log", ...)`) or direct attachment to the co-pilot chat.
@@ -40,7 +40,7 @@ def get_failing_pods(namespace: str) -> List[Dict]:
 
 def extract_pod_failure_core(pod_name: str, namespace: str, tail_lines: int = 100) -> Dict:
     """
-    Extracts exit code, termination reason, and last sanitized log lines 
+    Extracts exit code, termination reason, and last sanitized log lines
     from the crashing container.
     """
 
