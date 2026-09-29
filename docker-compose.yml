@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  sre-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sre-hub:latest
+    container_name: sre-hub
+    ports:
+      - "8501:8501"
+    environment:
+      # Pass through essential environment variables or load from .env
+      - PYTHONUNBUFFERED=1
+      # Note: To use Kubernetes tools (OpenShift/Tekton), you need to mount your kubeconfig
+      - KUBECONFIG=/.kube/config
+    volumes:
+      # Persist the application state (database, maps, bundles, logs)
+      - sre_hub_state:/opt/app-root/src/state
+      # Load environment variables from .env if present
+      - ./.env:/opt/app-root/src/.env:ro
+      # Mount user's kubeconfig read-only so the container can run 'oc'/'kubectl' commands
+      - ~/.kube:/opt/app-root/src/.kube:ro
+    restart: unless-stopped
+
+volumes:
+  sre_hub_state:
+    name: sre_hub_state_vol

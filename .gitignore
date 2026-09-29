@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Local secrets & env overrides
+.env
+
+# State runtime data (maps can be kept or ignored)
+state/maps/
+state/logs/
+state/digests/
+state/bundles/
+state/*.db
+state/*.db-*
